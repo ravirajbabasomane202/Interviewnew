@@ -16,15 +16,6 @@ const defaultRoadmap = {
   connections: []
 };
 
-const sanitizeNode = (node = {}) => ({
-  ...node,
-  title: sanitize(node.title || ''),
-  summary: sanitize(node.summary || ''),
-  code: sanitize(node.code || ''),
-  output: sanitize(node.output || ''),
-  notes: sanitize(node.notes || '')
-});
-
 export async function getRoadmap(req, res) {
   let roadmap = await Roadmap.findOne({ key: 'default' });
   if (!roadmap) roadmap = await Roadmap.create(defaultRoadmap);
@@ -35,22 +26,16 @@ export async function saveRoadmap(req, res) {
   const payload = req.body;
   if (!payload?.title?.trim()) return res.status(400).json({ message: 'Title is required' });
 
-  const cleanNodes = (payload.nodes || []).map(sanitizeNode).filter((node) => node.title.trim());
+  payload.nodes = (payload.nodes || []).map((node) => ({
+    ...node,
+    title: sanitize(node.title),
+    summary: sanitize(node.summary),
+    code: sanitize(node.code),
+    output: sanitize(node.output),
+    notes: sanitize(node.notes)
+  }));
 
-  const updatePayload = {
-    key: 'default',
-    title: sanitize(payload.title),
-    nodes: cleanNodes,
-    connections: payload.connections || []
-  };
-
-  const roadmap = await Roadmap.findOneAndUpdate({ key: 'default' }, updatePayload, {
-    new: true,
-    upsert: true,
-    runValidators: true,
-    setDefaultsOnInsert: true
-  });
-
+  const roadmap = await Roadmap.findOneAndUpdate({ key: 'default' }, payload, { new: true, upsert: true });
   res.json(roadmap);
 }
 

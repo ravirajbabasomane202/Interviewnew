@@ -1,87 +1,59 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import ReactFlow, { Background, Controls, MiniMap, addEdge, useEdgesState, useNodesState } from 'reactflow';
+import { useCallback, useMemo, useState } from 'react';
+import ReactFlow, {
+  Background,
+  Controls,
+  MiniMap,
+  addEdge,
+  useNodesState,
+  useEdgesState
+} from 'reactflow';
 import 'reactflow/dist/style.css';
 import { toFlowEdge, toFlowNode } from '../utils/nodeUtils';
 
-export default function CanvasBoard({
-  nodesData,
-  edgesData,
-  onNodesChangeData,
-  onEdgesChangeData,
-  onNodeClick,
-  highlightedNodeId,
-  onContextAction,
-  focusNodeId
-}) {
-  const mappedNodes = useMemo(() => nodesData.map(toFlowNode), [nodesData]);
-  const mappedEdges = useMemo(() => edgesData.map(toFlowEdge), [edgesData]);
-  const [nodes, setNodes, onNodesChange] = useNodesState(mappedNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(mappedEdges);
+export default function CanvasBoard({ nodesData, edgesData, onNodesChangeData, onEdgesChangeData, onNodeClick, highlightedNodeId, onContextAction }) {
+  const initialNodes = useMemo(() => nodesData.map(toFlowNode), [nodesData]);
+  const initialEdges = useMemo(() => edgesData.map(toFlowEdge), [edgesData]);
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [menu, setMenu] = useState(null);
 
-  useEffect(() => {
-    setNodes(mappedNodes);
-  }, [mappedNodes, setNodes]);
+  const syncNodes = (updated) => {
+    setNodes(updated);
+    onNodesChangeData(updated.map((n) => ({ ...n.data, position: n.position })));
+  };
 
-  useEffect(() => {
-    setEdges(mappedEdges);
-  }, [mappedEdges, setEdges]);
-
-  const syncNodes = useCallback(
-    (currentNodes) => {
-      onNodesChangeData(currentNodes.map((n) => ({ ...n.data, position: n.position })));
-    },
-    [onNodesChangeData]
-  );
-
-  const handleNodesChange = useCallback(
-    (changes) => {
-      onNodesChange(changes);
-      setTimeout(() => {
-        setNodes((current) => {
-          syncNodes(current);
-          return current;
-        });
-      }, 0);
-    },
-    [onNodesChange, setNodes, syncNodes]
-  );
-
-  const handleEdgesChange = useCallback(
-    (changes) => {
-      onEdgesChange(changes);
-      setTimeout(() => {
-        setEdges((current) => {
-          onEdgesChangeData(current.map((e) => ({ sourceId: e.source, targetId: e.target })));
-          return current;
-        });
-      }, 0);
-    },
-    [onEdgesChange, onEdgesChangeData, setEdges]
-  );
-
-  const onConnect = useCallback(
-    (params) => {
-      setEdges((eds) => {
-        const updated = addEdge({ ...params, type: 'smoothstep' }, eds);
-        onEdgesChangeData(updated.map((e) => ({ sourceId: e.source, targetId: e.target })));
-        return updated;
+  const handleNodesChange = useCallback((changes) => {
+    onNodesChange(changes);
+    setTimeout(() => {
+      setNodes((current) => {
+        onNodesChangeData(current.map((n) => ({ ...n.data, position: n.position })));
+        return current;
       });
-    },
-    [onEdgesChangeData, setEdges]
-  );
+    }, 0);
+  }, [onNodesChange, onNodesChangeData, setNodes]);
+
+  const handleEdgesChange = useCallback((changes) => {
+    onEdgesChange(changes);
+    setTimeout(() => {
+      setEdges((current) => {
+        onEdgesChangeData(current.map((e) => ({ sourceId: e.source, targetId: e.target })));
+        return current;
+      });
+    }, 0);
+  }, [onEdgesChange, onEdgesChangeData, setEdges]);
+
+  const onConnect = useCallback((params) => {
+    setEdges((eds) => {
+      const updated = addEdge({ ...params, type: 'smoothstep' }, eds);
+      onEdgesChangeData(updated.map((e) => ({ sourceId: e.source, targetId: e.target })));
+      return updated;
+    });
+  }, [onEdgesChangeData]);
 
   return (
     <div className="flex-1 relative" onClick={() => setMenu(null)}>
       <ReactFlow
-        nodes={nodes.map((n) => ({
-          ...n,
-          data: { ...n.data, isFocused: n.id === focusNodeId },
-          style: {
-            borderColor: n.id === highlightedNodeId ? '#f59e0b' : undefined,
-            boxShadow: n.id === highlightedNodeId ? '0 0 0 2px rgba(245,158,11,0.25)' : undefined
-          }
-        }))}
+        nodes={nodes.map((n) => ({ ...n, style: { borderColor: n.id === highlightedNodeId ? '#f59e0b' : undefined } }))}
         edges={edges}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
@@ -95,7 +67,7 @@ export default function CanvasBoard({
       >
         <MiniMap />
         <Controls />
-        <Background gap={20} size={1} />
+        <Background />
       </ReactFlow>
 
       {menu && (

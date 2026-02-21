@@ -30,27 +30,12 @@ export default function App() {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
-  const sanitizeNode = useCallback((node) => ({
-    ...node,
-    title: DOMPurify.sanitize(node.title || ''),
-    summary: DOMPurify.sanitize(node.summary || ''),
-    code: DOMPurify.sanitize(node.code || ''),
-    output: DOMPurify.sanitize(node.output || ''),
-    notes: DOMPurify.sanitize(node.notes || '')
-  }), []);
-
   const loadRoadmap = useCallback(async () => {
     try {
       const { data } = await roadmapApi.getRoadmap();
-      setRoadmap({
-        title: data.title || 'Interview Preparation',
-        nodes: data.nodes || [],
-        connections: data.connections || []
-      });
-      setSavedState('Saved');
+      setRoadmap(data);
     } catch {
       setRoadmap(defaultRoadmap);
-      setSavedState('Offline / Local default');
     }
   }, []);
 
@@ -58,21 +43,25 @@ export default function App() {
     loadRoadmap();
   }, [loadRoadmap]);
 
-  const saveRoadmap = useCallback(async () => {
-    try {
-      setSavedState('Saving...');
-      await roadmapApi.saveRoadmap({
-        title: roadmap.title,
-        nodes: roadmap.nodes.map(sanitizeNode),
-        connections: roadmap.connections
-      });
-      setSavedState('Saved');
-    } catch {
-      setSavedState('Save failed');
-    }
-  }, [roadmap, sanitizeNode]);
+  const sanitizeNode = (node) => ({
+    ...node,
+    title: DOMPurify.sanitize(node.title),
+    summary: DOMPurify.sanitize(node.summary || ''),
+    code: DOMPurify.sanitize(node.code || ''),
+    output: DOMPurify.sanitize(node.output || ''),
+    notes: DOMPurify.sanitize(node.notes || '')
+  });
 
-  useAutoSave(saveRoadmap, 5000, [roadmap.nodes, roadmap.connections, roadmap.title]);
+  const saveRoadmap = useCallback(async () => {
+    setSavedState('Saving...');
+    await roadmapApi.saveRoadmap({
+      ...roadmap,
+      nodes: roadmap.nodes.map(sanitizeNode)
+    });
+    setSavedState('Saved');
+  }, [roadmap]);
+
+  useAutoSave(saveRoadmap, 5000, [roadmap]);
 
   const highlightedNodeId = useMemo(() => {
     if (!searchTerm.trim()) return null;
@@ -96,32 +85,27 @@ export default function App() {
       connections: parentId ? [...prev.connections, { sourceId: parentId, targetId: node.id }] : prev.connections
     }));
     setSelectedNodeId(node.id);
-    setSavedState('Unsaved');
   };
 
   const updateNode = (updated) => {
-    if (!updated.title?.trim()) return;
+    if (!updated.title.trim()) return;
     setRoadmap((prev) => ({
       ...prev,
-      nodes: prev.nodes.map((node) => (node.id === updated.id ? { ...node, ...updated } : node))
+      nodes: prev.nodes.map((node) => (node.id === updated.id ? updated : node))
     }));
     setActiveNode(updated);
     setSavedState('Unsaved');
   };
 
-  const deleteNodeById = (nodeId) => {
-    if (!nodeId) return;
+  const deleteSelected = () => {
+    if (!selectedNodeId) return;
     setRoadmap((prev) => ({
       ...prev,
-      nodes: prev.nodes.filter((node) => node.id !== nodeId),
-      connections: prev.connections.filter((edge) => edge.sourceId !== nodeId && edge.targetId !== nodeId)
+      nodes: prev.nodes.filter((node) => node.id !== selectedNodeId),
+      connections: prev.connections.filter((edge) => edge.sourceId !== selectedNodeId && edge.targetId !== selectedNodeId)
     }));
     setActiveNode(null);
-    setSelectedNodeId(null);
-    setSavedState('Unsaved');
   };
-
-  const deleteSelected = () => deleteNodeById(selectedNodeId);
 
   const handleImageUpload = async (nodeId, file) => {
     const formData = new FormData();
@@ -140,7 +124,7 @@ export default function App() {
     if (action === 'addChild') addNode('content', node.id);
     if (action === 'rename') setActiveNode(node);
     if (action === 'markComplete') updateNode({ ...node, isCompleted: !node.isCompleted });
-    if (action === 'delete') deleteNodeById(node.id);
+    if (action === 'delete') deleteSelected();
   };
 
   return (
@@ -160,20 +144,13 @@ export default function App() {
         <CanvasBoard
           nodesData={roadmap.nodes}
           edgesData={roadmap.connections}
-          onNodesChangeData={(nodes) => {
-            setRoadmap((prev) => ({ ...prev, nodes }));
-            setSavedState('Unsaved');
-          }}
-          onEdgesChangeData={(connections) => {
-            setRoadmap((prev) => ({ ...prev, connections }));
-            setSavedState('Unsaved');
-          }}
+          onNodesChangeData={(nodes) => setRoadmap((prev) => ({ ...prev, nodes }))}
+          onEdgesChangeData={(connections) => setRoadmap((prev) => ({ ...prev, connections }))}
           onNodeClick={(node) => {
             setSelectedNodeId(node.id);
             setActiveNode(node);
           }}
           highlightedNodeId={highlightedNodeId}
-          focusNodeId={highlightedNodeId}
           onContextAction={handleContextAction}
         />
       </div>

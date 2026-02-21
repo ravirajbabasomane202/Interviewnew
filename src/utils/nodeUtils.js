@@ -17,25 +17,12 @@ export const createNode = ({ type = 'topic', position, parentId = null, title })
   metadata: {}
 });
 
-export const toFlowNode = (node) => {
-  const badges = [
-    node.priorityTag === 'Weak' ? 'Weak' : null,
-    node.priorityTag === 'Important' ? 'Important' : null,
-    node.isCompleted ? 'Completed' : null
-  ]
-    .filter(Boolean)
-    .join(' • ');
-
-  return {
-    id: node.id,
-    data: {
-      ...node,
-      label: `${node.title}\n${node.type.toUpperCase()}${badges ? `\n${badges}` : ''}`
-    },
-    position: node.position,
-    className: node.isCompleted ? 'completed' : ''
-  };
-};
+export const toFlowNode = (node) => ({
+  id: node.id,
+  data: node,
+  position: node.position,
+  className: node.isCompleted ? 'completed' : ''
+});
 
 export const toFlowEdge = (edge) => ({
   id: `${edge.sourceId}-${edge.targetId}`,
